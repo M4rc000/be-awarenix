@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // userInput merepresentasikan JSON yang dikirim FE
@@ -173,5 +174,116 @@ func GetUsers(c *gin.Context) {
 		"Success": true,
 		"Message": "Users retrieved successfully",
 		"Data":    users,
+	})
+}
+
+func DeleteUser(c *gin.Context) {
+	// Get user ID from URL parameter
+	userID := c.Param("id")
+
+	// Validate user ID
+	id, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid user ID format",
+			"error":   "User ID must be a valid number",
+		})
+		return
+	}
+
+	// Get current user from JWT token (from middleware)
+	currentUser, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized access",
+			"error":   "User session not found",
+		})
+		return
+	}
+
+	// Type assertion to get user data
+	user := currentUser.(*models.User)
+
+	// Prevent user from deleting themselves
+	if user.ID == uint(id) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Cannot delete your own account",
+			"error":   "Self-deletion is not allowed",
+		})
+		return
+	}
+
+	// Check if user to be deleted exists
+	var userToDelete models.User
+	if err := config.DB.First(&userToDelete, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"message": "User not found",
+				"error":   "The specified user does not exist",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Start database transaction for safe deletion
+	tx := config.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to start transaction",
+			"error":   tx.Error.Error(),
+		})
+		return
+	}
+
+	// Hard Delete user (permanently remove from database)
+	if err := tx.Unscoped().Delete(&userToDelete).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to delete user",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Optional: Delete related data (sessions, logs, etc.) - HARD DELETE
+	// Example: Delete user sessions permanently
+	if err := tx.Unscoped().Where("user_id = ?", id).Delete(&models.UserSession{}).Error; err != nil {
+		// Log error but don't fail the deletion
+		// You might want to handle this differently based on your needs
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to commit transaction",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "User deleted successfully",
+		"data": gin.H{
+			"deleted_user": gin.H{
+				"id":       userToDelete.ID,
+				"name":     userToDelete.Name,
+				"email":    userToDelete.Email,
+				"position": userToDelete.Position,
+			},
+		},
 	})
 }

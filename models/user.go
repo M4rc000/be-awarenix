@@ -14,3 +14,11 @@ type User struct {
 	CreatedAt    time.Time `json:"createdAt"`
 	UpdatedAt    time.Time `json:"updatedAt"`
 }
+
+type UserSession struct {
+	ID        uint      `json:"id" gorm:"primaryKey"`
+	UserID    uint      `json:"user_id" gorm:"not null"`
+	Token     string    `json:"token" gorm:"not null"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}

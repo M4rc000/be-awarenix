@@ -59,7 +59,7 @@ func AuthLogin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token, "user": userResponse})
+	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
 }
 
 func AuthLogout(c *gin.Context) {

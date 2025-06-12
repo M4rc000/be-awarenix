@@ -21,13 +21,10 @@ func SetupRoutes(router *gin.Engine) {
 	{
 		users := api.Group("/users")
 		{
+			users.POST("/register", controllers.RegisterUser)
 			users.GET("/session", controllers.GetUserSession)
-			users.GET("/all", controllers.GetUsers) // Get all users with pagination, search, sorting
-			// users.GET("/:id", controllers.GetUserByID)    // Get single user by ID
-			// users.POST("/", controllers.CreateUser)       // Create new user
-			// users.PUT("/:id", controllers.UpdateUser)     // Update user
-			// users.DELETE("/:id", controllers.DeleteUser)  // Delete user
-			// users.GET("/stats", controllers.GetUserStats) // Get user statistics
+			users.GET("/all", controllers.GetUsers)      // Get all users with pagination, search, sorting
+			users.DELETE("/:id", controllers.DeleteUser) // Delete user
 		}
 	}
 }
