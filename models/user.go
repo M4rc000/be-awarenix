@@ -9,10 +9,14 @@ type User struct {
 	Position     string    `gorm:"not null" json:"position"`
 	PasswordHash string    `gorm:"not null" json:"password"`
 	IsActive     bool      `gorm:"default:1" json:"isActive"`
-	CreatedBy    uint      `json:"createdBy"`
-	UpdatedBy    uint      `json:"updatedBy"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	Role         string    `gorm:"null" json:"role"`
+	Company      string    `gorm:"null" json:"company"`
+	Country      string    `gorm:"null" json:"conutry"`
+	CreatedBy    uint      `gorm:"null" json:"createdBy"`
+	UpdatedBy    uint      `gorm:"null" json:"updatedBy"`
+	CreatedAt    time.Time `gorm:"null" json:"createdAt"`
+	UpdatedAt    time.Time `gorm:"null" json:"updatedAt"`
+	Group        Group     `gorm:foreginKey:GroupID`
 }
 
 type UserSession struct {

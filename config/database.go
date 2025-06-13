@@ -26,7 +26,7 @@ func InitDatabase() {
 
 	// Auto-migrate models
 	db.AutoMigrate(
-		&models.User{}, &models.Event{},
+		&models.User{}, &models.Event{}, &models.Group{},
 	)
 
 	DB = db

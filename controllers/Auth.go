@@ -59,7 +59,15 @@ func AuthLogin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
+	userdata := map[string]interface{}{
+		"id":       user.ID,
+		"name":     user.Name,
+		"email":    user.Email,
+		"position": user.Position,
+		"role":     user.Role,
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": token, "user": userdata})
 }
 
 func AuthLogout(c *gin.Context) {
