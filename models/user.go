@@ -11,7 +11,8 @@ type User struct {
 	IsActive     bool      `gorm:"default:1" json:"isActive"`
 	Role         string    `gorm:"null" json:"role"`
 	Company      string    `gorm:"null" json:"company"`
-	Country      string    `gorm:"null" json:"conutry"`
+	Country      string    `gorm:"null" json:"country"`
+	LastLogin    time.Time `gorm:"null" json:"lastLogin"`
 	CreatedBy    uint      `gorm:"null" json:"createdBy"`
 	UpdatedBy    uint      `gorm:"null" json:"updatedBy"`
 	CreatedAt    time.Time `gorm:"null" json:"createdAt"`

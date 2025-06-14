@@ -1,17 +1,19 @@
 package middlewares
 
-// // func CORSMiddleware() gin.HandlerFunc {
-// // 	return func(c *gin.Context) {
-// // 		c.Header("Access-Control-Allow-Origin", "*") // Allow all origins (*), or set specific domain
-// // 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-// // 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
+import (
+	"time"
 
-// // 		// Handle preflight requests for OPTIONS method
-// // 		if c.Request.Method == "OPTIONS" {
-// // 			c.AbortWithStatus(204)
-// // 			return
-// // 		}
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+)
 
-// // 		c.Next()
-// // 	}
-// }
+func CORSMiddleware() gin.HandlerFunc {
+	return cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173", "http://127.0.0.1:5173", "http://192.168.1.9:5173"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	})
+}

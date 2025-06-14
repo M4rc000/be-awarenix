@@ -6,6 +6,7 @@ import (
 	"be-awarenix/services"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -57,6 +58,11 @@ func AuthLogin(c *gin.Context) {
 		log.Printf("JWT generation error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create token"})
 		return
+	}
+
+	user.LastLogin = time.Now().In(services.JakartaLocation)
+	if err := config.DB.Save(&user).Error; err != nil {
+		log.Printf("Failed to update last_login: %v", err)
 	}
 
 	userdata := map[string]interface{}{
