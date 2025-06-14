@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -14,11 +15,10 @@ func ComparePassword(hash, password string) error {
 }
 
 // GenerateJWT membuat JWT signed dengan HS256
-func GenerateJWT(userID uint, email string) (string, error) {
-	// secret := os.Getenv("JWT_SECRET", "azsxdcfv")
-	secret := "azsxdcfv"
+func GenerateJWT(userID uint, email string) (string, int64, error) {
+	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		return "", fmt.Errorf("JWT_SECRET not set")
+		return "", 0, fmt.Errorf("JWT_SECRET not set")
 	}
 
 	exp := time.Now().Add(1 * time.Hour).Unix()
@@ -31,5 +31,10 @@ func GenerateJWT(userID uint, email string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(secret))
+	signedToken, err := token.SignedString([]byte(secret))
+	if err != nil {
+		return "", 0, err
+	}
+
+	return signedToken, exp, nil
 }

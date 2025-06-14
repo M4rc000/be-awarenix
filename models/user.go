@@ -16,7 +16,6 @@ type User struct {
 	UpdatedBy    uint      `gorm:"null" json:"updatedBy"`
 	CreatedAt    time.Time `gorm:"null" json:"createdAt"`
 	UpdatedAt    time.Time `gorm:"null" json:"updatedAt"`
-	Group        Group     `gorm:foreginKey:GroupID`
 }
 
 type UserSession struct {

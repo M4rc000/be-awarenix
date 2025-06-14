@@ -52,7 +52,7 @@ func AuthLogin(c *gin.Context) {
 		return
 	}
 
-	token, err := services.GenerateJWT(user.ID, user.Email)
+	token, exp, err := services.GenerateJWT(user.ID, user.Email)
 	if err != nil {
 		log.Printf("JWT generation error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create token"})
@@ -67,7 +67,7 @@ func AuthLogin(c *gin.Context) {
 		"role":     user.Role,
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token, "user": userdata})
+	c.JSON(http.StatusOK, gin.H{"token": token, "user": userdata, "expires_at": exp})
 }
 
 func AuthLogout(c *gin.Context) {
