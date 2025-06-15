@@ -174,6 +174,55 @@ func GetUsers(c *gin.Context) {
 		"Success": true,
 		"Message": "Users retrieved successfully",
 		"Data":    users,
+		"Total":   total,
+	})
+}
+
+func UpdateUser(c *gin.Context) {
+	id := c.Param("id")
+
+	var user models.User
+	if err := config.DB.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"Success": false,
+			"Message": "User not found",
+			"Error":   err.Error(),
+		})
+		return
+	}
+
+	var updatedData struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Position string `json:"position"`
+	}
+
+	if err := c.ShouldBindJSON(&updatedData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"Success": false,
+			"Message": "Invalid request",
+			"Error":   err.Error(),
+		})
+		return
+	}
+
+	user.Name = updatedData.Name
+	user.Email = updatedData.Email
+	user.Position = updatedData.Position
+
+	if err := config.DB.Save(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"Success": false,
+			"Message": "Failed to update user",
+			"Error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"Success": true,
+		"Message": "User updated successfully",
+		"Data":    user,
 	})
 }
 

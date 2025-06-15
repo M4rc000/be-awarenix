@@ -19,11 +19,17 @@ func SetupRoutes(router *gin.Engine) {
 	api := router.Group("/api/v1")
 	api.Use(middlewares.JWTAuth())
 	{
+		groups := api.Group("/groups")
+		{
+			groups.GET("/all", controllers.GetGroups)
+		}
+
 		users := api.Group("/users")
 		{
 			users.POST("/register", controllers.RegisterUser)
 			users.GET("/session", controllers.GetUserSession)
 			users.GET("/all", controllers.GetUsers)      // Get all users with pagination, search, sorting
+			users.PUT("/:id", controllers.UpdateUser)    // ← Tambahkan ini
 			users.DELETE("/:id", controllers.DeleteUser) // Delete user
 		}
 	}
