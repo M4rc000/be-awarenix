@@ -11,49 +11,31 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func AuthRegister(c *gin.Context) {
-	var body struct{ Email, Password string }
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
-		return
-	}
-
-	// var salt uint32 = 12345
-	// var iterations uint32 = 10000
-	// var keyLen uint8 = 32
-
-	// // hash, _ := services.HashPassword(body.Password, salt, iterations, keyLen)
-	// // Simpan ke DB...
-	// c.JSON(http.StatusCreated, gin.H{"message": "User registered"})
-}
-
 type loginInput struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
+	Status   string `json:"status"`
 }
 
 func AuthLogin(c *gin.Context) {
 	var input loginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		log.Printf("Login bind error: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	var user models.User
 	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		log.Printf("User lookup error: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
 	if err := services.ComparePassword(user.PasswordHash, input.Password); err != nil {
-		log.Printf("Password mismatch for %s: %v", input.Email, err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
-	token, exp, err := services.GenerateJWT(user.ID, user.Email)
+	token, exp, err := services.GenerateJWT(user.ID, user.Email, input.Status)
 	if err != nil {
 		log.Printf("JWT generation error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create token"})

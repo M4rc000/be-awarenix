@@ -15,19 +15,25 @@ func ComparePassword(hash, password string) error {
 }
 
 // GenerateJWT membuat JWT signed dengan HS256
-func GenerateJWT(userID uint, email string) (string, int64, error) {
+func GenerateJWT(userID uint, email string, status string) (string, int64, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		return "", 0, fmt.Errorf("JWT_SECRET not set")
 	}
 
-	exp := time.Now().Add(1 * time.Hour).Unix()
+	var exp time.Duration
+	if status == "KeepMeLoggedIn" {
+		exp = 30 * 24 * time.Hour
+	} else {
+		exp = 1 * time.Hour
+	}
 
+	expTime := time.Now().Add(exp).Unix()
 	claims := jwt.MapClaims{
 		"sub":   userID,
 		"email": email,
 		"iat":   time.Now().Unix(),
-		"exp":   exp,
+		"exp":   expTime,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -36,5 +42,5 @@ func GenerateJWT(userID uint, email string) (string, int64, error) {
 		return "", 0, err
 	}
 
-	return signedToken, exp, nil
+	return signedToken, expTime, nil
 }

@@ -45,6 +45,11 @@ func SetupRoutes(router *gin.Engine) {
 			landingPage.GET("/all", controllers.GetLandingPages)
 		}
 
+		sendingprofiles := api.Group("/sending-profile")
+		{
+			sendingprofiles.GET("/all", controllers.GetSendingProfiles)
+		}
+
 		analytics := api.Group("/analytics")
 		{
 			analytics.GET("/growth-percentage", controllers.GetGrowthPercentage)

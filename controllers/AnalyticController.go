@@ -73,15 +73,45 @@ func GetGrowthPercentage(c *gin.Context) {
 		}
 
 	case "emailtemplates":
-		// Hitung group bulan ini
+		// Hitung email template bulan ini
 		err = config.DB.Model(&models.EmailTemplate{}).Where("created_at BETWEEN ? AND ?", currentMonthStart, currentMonthEnd).Count(&currentCount).Error
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count current month email templates"})
 			return
 		}
 
-		// Hitung group bulan lalu
+		// Hitung email template bulan lalu
 		err = config.DB.Model(&models.EmailTemplate{}).Where("created_at BETWEEN ? AND ?", previousMonthStart, previousMonthEnd).Count(&previousCount).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count previous month email templates"})
+			return
+		}
+
+	case "landingpages":
+		// Hitung landing page bulan ini
+		err = config.DB.Model(&models.LandingPage{}).Where("created_at BETWEEN ? AND ?", currentMonthStart, currentMonthEnd).Count(&currentCount).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count current month email templates"})
+			return
+		}
+
+		// Hitung landing page bulan lalu
+		err = config.DB.Model(&models.LandingPage{}).Where("created_at BETWEEN ? AND ?", previousMonthStart, previousMonthEnd).Count(&previousCount).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count previous month email templates"})
+			return
+		}
+
+	case "sendingprofiles":
+		// Hitung landing page bulan ini
+		err = config.DB.Model(&models.SendingProfiles{}).Where("created_at BETWEEN ? AND ?", currentMonthStart, currentMonthEnd).Count(&currentCount).Error
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count current month email templates"})
+			return
+		}
+
+		// Hitung landing page bulan lalu
+		err = config.DB.Model(&models.SendingProfiles{}).Where("created_at BETWEEN ? AND ?", previousMonthStart, previousMonthEnd).Count(&previousCount).Error
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count previous month email templates"})
 			return
