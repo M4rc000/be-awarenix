@@ -9,7 +9,7 @@ import (
 
 func SetupRoutes(router *gin.Engine) {
 	// Middleware global
-	// router.Use(gin.Logger(), gin.Recovery())
+	router.Use(gin.Logger(), gin.Recovery())
 
 	// Public routes
 	router.POST("/api/v1/auth/login", controllers.AuthLogin)
@@ -22,6 +22,8 @@ func SetupRoutes(router *gin.Engine) {
 		groups := api.Group("/groups")
 		{
 			groups.GET("/all", controllers.GetGroups)
+			groups.POST("/register", controllers.RegisterGroup)
+			groups.PUT("/:id", controllers.UpdateUser) // Edit Grooup
 		}
 
 		users := api.Group("/users")
@@ -29,8 +31,23 @@ func SetupRoutes(router *gin.Engine) {
 			users.POST("/register", controllers.RegisterUser)
 			users.GET("/session", controllers.GetUserSession)
 			users.GET("/all", controllers.GetUsers)      // Get all users with pagination, search, sorting
-			users.PUT("/:id", controllers.UpdateUser)    // ← Tambahkan ini
+			users.PUT("/:id", controllers.UpdateUser)    // Edit User
 			users.DELETE("/:id", controllers.DeleteUser) // Delete user
+		}
+
+		emailTemplate := api.Group("/email-template")
+		{
+			emailTemplate.GET("/all", controllers.GetEmailTemplates)
+		}
+
+		landingPage := api.Group("/landing-page")
+		{
+			landingPage.GET("/all", controllers.GetLandingPages)
+		}
+
+		analytics := api.Group("/analytics")
+		{
+			analytics.GET("/growth-percentage", controllers.GetGrowthPercentage)
 		}
 	}
 }

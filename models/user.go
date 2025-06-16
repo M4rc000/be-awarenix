@@ -19,6 +19,13 @@ type User struct {
 	UpdatedAt    time.Time `gorm:"null" json:"updatedAt"`
 }
 
+type UserInput struct {
+	Name     string `json:"name"     binding:"required"`
+	Email    string `json:"email"    binding:"required,email"`
+	Position string `json:"position" binding:"required"`
+	Password string `json:"password" binding:"required,min=6"`
+}
+
 type UserSession struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	UserID    uint      `json:"user_id" gorm:"not null"`
