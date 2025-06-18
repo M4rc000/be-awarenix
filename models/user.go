@@ -19,11 +19,21 @@ type User struct {
 	UpdatedAt    time.Time `gorm:"null" json:"updatedAt"`
 }
 
-type UserInput struct {
-	Name     string `json:"name"     binding:"required"`
-	Email    string `json:"email"    binding:"required,email"`
-	Position string `json:"position" binding:"required"`
-	Password string `json:"password" binding:"required,min=6"`
+type CreateUserInput struct {
+	Name      string    `json:"name"     binding:"required"`
+	Email     string    `json:"email"    binding:"required,email"`
+	Position  string    `json:"position" binding:"required"`
+	Password  string    `json:"password" binding:"required,min=6"`
+	CreatedAt time.Time `gorm:"null" json:"createdAt"`
+	CreatedBy uint      `gorm:"null" json:"createdBy"`
+}
+type UpdateUserInput struct {
+	Name      string    `json:"name"     binding:"required"`
+	Email     string    `json:"email"    binding:"required,email"`
+	Position  string    `json:"position" binding:"required"`
+	Password  string    `json:"password" binding:"required,min=6"`
+	UpdatedAt time.Time `gorm:"null"`
+	UpdatedBy uint      `gorm:"null" json:"updatedBy"`
 }
 
 type UserSession struct {

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,7 +26,7 @@ type UserResponse struct {
 }
 
 func RegisterUser(c *gin.Context) {
-	var input models.UserInput
+	var input models.CreateUserInput
 
 	// Bind dan validasi input JSON
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -62,7 +63,11 @@ func RegisterUser(c *gin.Context) {
 		Email:        input.Email,
 		Position:     input.Position,
 		PasswordHash: string(hashedPassword),
+		CreatedAt:    time.Now(),
+		CreatedBy:    input.CreatedBy,
 	}
+
+	log.Println("New User: ", newUser)
 
 	// Simpan ke database
 	if err := config.DB.Create(&newUser).Error; err != nil {
@@ -183,11 +188,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	var updatedData struct {
-		Name     string `json:"name"`
-		Email    string `json:"email"`
-		Position string `json:"position"`
-	}
+	var updatedData models.UpdateUserInput
 
 	if err := c.ShouldBindJSON(&updatedData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -201,6 +202,21 @@ func UpdateUser(c *gin.Context) {
 	user.Name = updatedData.Name
 	user.Email = updatedData.Email
 	user.Position = updatedData.Position
+	user.UpdatedAt = time.Now()
+	user.UpdatedBy = updatedData.UpdatedBy
+	user.UpdatedBy = updatedData.UpdatedBy
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(updatedData.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Password hashing failed",
+			"message": "Failed to process password",
+		})
+		return
+	}
+
+	user.PasswordHash = string(hashedPassword)
 
 	if err := config.DB.Save(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

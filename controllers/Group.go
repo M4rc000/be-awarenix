@@ -96,7 +96,7 @@ func GetGroups(c *gin.Context) {
 }
 
 func RegisterGroup(c *gin.Context) {
-	var input models.UserInput
+	var input models.CreateUserInput
 
 	// Bind dan validasi input JSON
 	if err := c.ShouldBindJSON(&input); err != nil {

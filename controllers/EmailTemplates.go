@@ -3,12 +3,13 @@ package controllers
 import (
 	"be-awarenix/config"
 	"be-awarenix/models"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // GET ALL DATA EMAIL TEMPLATE
@@ -91,13 +92,8 @@ func RegisterEmailTemplate(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("Name: ", input.Name)
-	fmt.Println("Sender: ", input.EnvelopeSender)
-	fmt.Println("Subject: ", input.Subject)
-	fmt.Println("Body: ", input.Body)
-
 	// BUAT EMAIL TEMPLATE BARU
-	newUser := models.EmailTemplate{
+	newEmailTemplate := models.EmailTemplate{
 		Name:           input.Name,
 		EnvelopeSender: input.EnvelopeSender,
 		Subject:        input.Subject,
@@ -105,7 +101,7 @@ func RegisterEmailTemplate(c *gin.Context) {
 	}
 
 	// SIMPAN KE DATABASE
-	if err := config.DB.Create(&newUser).Error; err != nil {
+	if err := config.DB.Create(&newEmailTemplate).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Database error",
 			"message": "Failed to create email template",
@@ -135,10 +131,12 @@ func UpdateEmailTemplate(c *gin.Context) {
 	}
 
 	var updatedData struct {
-		Name          string `json:"name"`
+		Name          string `json:"templateName"`
 		EnvelopSender string `json:"envelopeSender"`
 		Subject       string `json:"subject"`
 		Body          string `json:"bodyEmail"`
+		UpdatedAt     string `json:"updatedAt"`
+		UpdatedBy     int8   `json:"updatedBy"`
 	}
 
 	if err := c.ShouldBindJSON(&updatedData); err != nil {
@@ -154,6 +152,8 @@ func UpdateEmailTemplate(c *gin.Context) {
 	emailTemplate.EnvelopeSender = updatedData.EnvelopSender
 	emailTemplate.Subject = updatedData.Subject
 	emailTemplate.Body = updatedData.Body
+	emailTemplate.UpdatedBy = uint(updatedData.UpdatedBy)
+	emailTemplate.UpdatedAt = time.Now()
 
 	if err := config.DB.Save(&emailTemplate).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -168,5 +168,85 @@ func UpdateEmailTemplate(c *gin.Context) {
 		"Success": true,
 		"Message": "Email template updated successfully",
 		"Data":    emailTemplate,
+	})
+}
+
+// DELETE DATA EMAIL TEMPLATE
+func DeleteEmailTemplate(c *gin.Context) {
+	emailTemplateID := c.Param("id")
+
+	// VALIDATE EMAIL TEMPLATE ID
+	id, err := strconv.ParseUint(emailTemplateID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid Email Template ID format",
+			"error":   "Email Template ID must be a valid number",
+		})
+		return
+	}
+
+	// CHECK IF EMAIL TEMPLATE THAT WANT TO BE DELETE EXIST
+	var emailTemplateDelete models.EmailTemplate
+	if err := config.DB.First(&emailTemplateDelete, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"message": "Email Template not found",
+				"error":   "The specified user does not exist",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Database error",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// START DB TRANSACTION FOR SAFE DELETION
+	tx := config.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to start transaction",
+			"error":   tx.Error.Error(),
+		})
+		return
+	}
+
+	// Hard Delete Email Template (permanently remove from database)
+	if err := tx.Unscoped().Delete(&emailTemplateDelete).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to delete email template",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to commit transaction",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Email template deleted successfully",
+		"data": gin.H{
+			"deleted_user": gin.H{
+				"id":            emailTemplateDelete.ID,
+				"name":          emailTemplateDelete.Name,
+				"envelopSender": emailTemplateDelete.EnvelopeSender,
+				"subject":       emailTemplateDelete.Subject,
+			},
+		},
 	})
 }

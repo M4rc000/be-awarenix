@@ -21,25 +21,26 @@ func SetupRoutes(router *gin.Engine) {
 	{
 		groups := api.Group("/groups")
 		{
-			groups.GET("/all", controllers.GetGroups)
-			groups.POST("/register", controllers.RegisterGroup)
-			groups.PUT("/:id", controllers.UpdateUser) // Edit Grooup
+			groups.POST("/register", controllers.RegisterGroup) // CREATE
+			groups.GET("/all", controllers.GetGroups)           // READ
+			groups.PUT("/:id", controllers.UpdateUser)          // UPDATE
 		}
 
 		users := api.Group("/users")
 		{
-			users.POST("/register", controllers.RegisterUser)
 			users.GET("/session", controllers.GetUserSession)
-			users.GET("/all", controllers.GetUsers)      // Get all users with pagination, search, sorting
-			users.PUT("/:id", controllers.UpdateUser)    // Edit User
-			users.DELETE("/:id", controllers.DeleteUser) // Delete user
+			users.POST("/register", controllers.RegisterUser) // CREATE
+			users.GET("/all", controllers.GetUsers)           // READ
+			users.PUT("/:id", controllers.UpdateUser)         // UPDATE
+			users.DELETE("/:id", controllers.DeleteUser)      // DELETE
 		}
 
 		emailTemplate := api.Group("/email-template")
 		{
-			emailTemplate.GET("/all", controllers.GetEmailTemplates)
-			emailTemplate.POST("/create", controllers.RegisterEmailTemplate)
-			emailTemplate.PUT("/:id", controllers.UpdateEmailTemplate) // Edit User
+			emailTemplate.POST("/create", controllers.RegisterEmailTemplate) // CREATE
+			emailTemplate.GET("/all", controllers.GetEmailTemplates)         // READ
+			emailTemplate.PUT("/:id", controllers.UpdateEmailTemplate)       // UPDATE
+			emailTemplate.DELETE("/:id", controllers.DeleteEmailTemplate)    // DELETE
 
 		}
 

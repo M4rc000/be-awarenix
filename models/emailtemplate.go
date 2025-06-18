@@ -11,7 +11,7 @@ type EmailTemplate struct {
 	CreatedBy      uint      `gorm:"null" json:"createdBy"`
 	UpdatedBy      uint      `gorm:"null" json:"updatedBy"`
 	CreatedAt      time.Time `gorm:"null" json:"createdAt"`
-	UpdatedAt      time.Time `gorm:"null" json:"updatedAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 type EmailTemplateInput struct {
