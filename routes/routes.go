@@ -38,6 +38,9 @@ func SetupRoutes(router *gin.Engine) {
 		emailTemplate := api.Group("/email-template")
 		{
 			emailTemplate.GET("/all", controllers.GetEmailTemplates)
+			emailTemplate.POST("/create", controllers.RegisterEmailTemplate)
+			emailTemplate.PUT("/:id", controllers.UpdateEmailTemplate) // Edit User
+
 		}
 
 		landingPage := api.Group("/landing-page")

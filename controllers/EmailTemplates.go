@@ -3,6 +3,7 @@ package controllers
 import (
 	"be-awarenix/config"
 	"be-awarenix/models"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GET ALL DATA EMAIL TEMPLATE
 func GetEmailTemplates(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
@@ -24,7 +26,7 @@ func GetEmailTemplates(c *gin.Context) {
 	if search != "" {
 		searchPattern := "%" + strings.ToLower(search) + "%"
 		query = query.Where(
-			"LOWER(name) LIKE ? OR LOWER(envelop_sender) LIKE ? OR LOWER(subject) LIKE ?",
+			"LOWER(name) LIKE ? OR LOWER(envelope_sender) LIKE ? OR LOWER(subject) LIKE ?",
 			searchPattern, searchPattern, searchPattern,
 		)
 	}
@@ -61,5 +63,110 @@ func GetEmailTemplates(c *gin.Context) {
 		"Message": "Email templates retrieved successfully",
 		"Data":    templates,
 		"Total":   total,
+	})
+}
+
+// SAVE NEW DATA EMAIL TEMPLATE
+func RegisterEmailTemplate(c *gin.Context) {
+	var input models.EmailTemplateInput
+
+	// Bind dan validasi input JSON
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Validation failed",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// CEK DUPLIKASI EMAIL TEMPLATE
+	var existingEmailTemplate models.EmailTemplate
+	if err := config.DB.
+		Where("subject = ? AND envelope_sender = ?", input.Subject, input.EnvelopeSender).
+		First(&existingEmailTemplate).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{
+			"error":   "Email Template already exists",
+			"message": "Email Template with this Subject and Envelope Sender already registered",
+		})
+		return
+	}
+
+	fmt.Println("Name: ", input.Name)
+	fmt.Println("Sender: ", input.EnvelopeSender)
+	fmt.Println("Subject: ", input.Subject)
+	fmt.Println("Body: ", input.Body)
+
+	// BUAT EMAIL TEMPLATE BARU
+	newUser := models.EmailTemplate{
+		Name:           input.Name,
+		EnvelopeSender: input.EnvelopeSender,
+		Subject:        input.Subject,
+		Body:           input.Body,
+	}
+
+	// SIMPAN KE DATABASE
+	if err := config.DB.Create(&newUser).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Database error",
+			"message": "Failed to create email template",
+		})
+		return
+	}
+
+	// RESPONSE SUKSES
+	c.JSON(http.StatusCreated, gin.H{
+		"status":  "success",
+		"message": "Email Template created successfully",
+	})
+}
+
+// EDIT DATA EMAIL TEMPLATE
+func UpdateEmailTemplate(c *gin.Context) {
+	id := c.Param("id")
+
+	var emailTemplate models.EmailTemplate
+	if err := config.DB.First(&emailTemplate, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"Success": false,
+			"Message": "Email template not found",
+			"Error":   err.Error(),
+		})
+		return
+	}
+
+	var updatedData struct {
+		Name          string `json:"name"`
+		EnvelopSender string `json:"envelopeSender"`
+		Subject       string `json:"subject"`
+		Body          string `json:"bodyEmail"`
+	}
+
+	if err := c.ShouldBindJSON(&updatedData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"Success": false,
+			"Message": "Invalid request",
+			"Error":   err.Error(),
+		})
+		return
+	}
+
+	emailTemplate.Name = updatedData.Name
+	emailTemplate.EnvelopeSender = updatedData.EnvelopSender
+	emailTemplate.Subject = updatedData.Subject
+	emailTemplate.Body = updatedData.Body
+
+	if err := config.DB.Save(&emailTemplate).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"Success": false,
+			"Message": "Failed to update email template",
+			"Error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"Success": true,
+		"Message": "Email template updated successfully",
+		"Data":    emailTemplate,
 	})
 }
