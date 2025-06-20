@@ -28,7 +28,7 @@ func SetupRoutes(router *gin.Engine) {
 
 		users := api.Group("/users")
 		{
-			users.GET("/session", controllers.GetUserSession)
+			users.POST("/session", controllers.GetUserSession)
 			users.POST("/register", controllers.RegisterUser) // CREATE
 			users.GET("/all", controllers.GetUsers)           // READ
 			users.PUT("/:id", controllers.UpdateUser)         // UPDATE
@@ -46,7 +46,11 @@ func SetupRoutes(router *gin.Engine) {
 
 		landingPage := api.Group("/landing-page")
 		{
-			landingPage.GET("/all", controllers.GetLandingPages)
+			landingPage.POST("/create", controllers.RegisterEmailTemplate) // CREATE
+			landingPage.GET("/all", controllers.GetLandingPages)           // READ
+			landingPage.PUT("/:id", controllers.UpdateEmailTemplate)       // UPDATE
+			landingPage.DELETE("/:id", controllers.DeleteEmailTemplate)    // DELETE
+			landingPage.POST("/clone-site", controllers.CloneSiteHTML)     // DISINI
 		}
 
 		sendingprofiles := api.Group("/sending-profile")

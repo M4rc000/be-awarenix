@@ -65,28 +65,36 @@ func AuthLogout(c *gin.Context) {
 }
 
 func GetUserSession(c *gin.Context) {
-	// Ambil dari context
-	uidRaw, _ := c.Get("userID")
-	emailRaw, _ := c.Get("userEmail")
-	userID := uidRaw.(uint)
-	email := emailRaw.(string)
+	var input models.GetUserSession
 
-	// Optional: fetch full user record
-	var user models.User
-	if err := config.DB.First(&user, userID).Error; err != nil {
-		// fallback: kirim minimal data
-		c.JSON(http.StatusOK, gin.H{
-			"id":    userID,
-			"email": email,
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"Success": false,
+			"Message": "Invalid request body",
+			"Error":   err.Error(),
 		})
 		return
 	}
 
-	// Kirim hanya field yang diperlukan
+	var user models.User
+	if err := config.DB.Select("id", "name", "email", "position", "role").First(&user, input.ID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"Success": false,
+			"Message": "User not found",
+			"Error":   err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"id":       user.ID,
-		"name":     user.Name,
-		"email":    user.Email,
-		"position": user.Position,
+		"Success": true,
+		"Message": "User session retrieved successfully",
+		"Data": gin.H{
+			"id":       user.ID,
+			"name":     user.Name,
+			"email":    user.Email,
+			"position": user.Position,
+			"role":     user.Role,
+		},
 	})
 }

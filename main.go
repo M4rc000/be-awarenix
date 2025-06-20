@@ -19,6 +19,11 @@ func main() {
 		log.Fatalf("Error loading .env: %v", err)
 	}
 
+	err = os.Setenv("TZ", "Asia/Jakarta")
+	if err != nil {
+		log.Fatalf("Failed to set timezone: %v", err)
+	}
+
 	// Init DB
 	config.InitDatabase()
 

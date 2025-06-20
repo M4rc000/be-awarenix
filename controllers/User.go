@@ -1,10 +1,8 @@
 package controllers
 
 import (
-	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"be-awarenix/config"
@@ -25,60 +23,68 @@ type UserResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// CREATE
 func RegisterUser(c *gin.Context) {
 	var input models.CreateUserInput
 
-	// Bind dan validasi input JSON
+	// BIND & VALIDASI INPUT JSON
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Validation failed",
-			"message": err.Error(),
+			"status":  "error",
+			"message": "Invalid input",
+			"error":   err.Error(),
 		})
 		return
 	}
 
-	// Cek apakah email sudah digunakan
+	// CEK APAKAH EMAIL SUDAH DIPAKAI
 	var existingUser models.User
 	if err := config.DB.Where("email = ?", input.Email).First(&existingUser).Error; err == nil {
 		c.JSON(http.StatusConflict, gin.H{
-			"error":   "Email already exists",
+			"status":  "error",
 			"message": "User with this email already registered",
+			"error":   "Email already exists",
+			"fields": map[string]string{
+				"email": "Email is already taken",
+			},
 		})
 		return
 	}
 
-	// Hash password
+	// HASH PASSWORD
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Password hashing failed",
+			"status":  "error",
 			"message": "Failed to process password",
+			"error":   "Password hashing failed",
 		})
 		return
 	}
 
-	// Buat user baru
+	// BUAT USER BARU
 	newUser := models.User{
 		Name:         input.Name,
 		Email:        input.Email,
 		Position:     input.Position,
+		Role:         input.Role,
+		Company:      input.Company,
 		PasswordHash: string(hashedPassword),
 		CreatedAt:    time.Now(),
 		CreatedBy:    input.CreatedBy,
 	}
 
-	log.Println("New User: ", newUser)
-
-	// Simpan ke database
+	// SIMPAN KE DATABASE
 	if err := config.DB.Create(&newUser).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Database error",
+			"status":  "error",
 			"message": "Failed to create user",
+			"error":   err.Error(),
 		})
 		return
 	}
 
-	// Siapkan response (tanpa password)
+	// RESPONSE DATA
 	userResponse := UserResponse{
 		ID:        newUser.ID,
 		Name:      newUser.Name,
@@ -88,39 +94,19 @@ func RegisterUser(c *gin.Context) {
 		UpdatedAt: newUser.UpdatedAt,
 	}
 
-	// Response sukses
+	// RESPONSE SUKSES
 	c.JSON(http.StatusCreated, gin.H{
+		"status":  "success",
 		"message": "User created successfully",
 		"data":    userResponse,
 	})
 }
 
+// READ
 func GetUsers(c *gin.Context) {
-	// Get query parameters
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	search := c.Query("search")
-	sortBy := c.DefaultQuery("sortBy", "id")
-	sortOrder := c.DefaultQuery("sortOrder", "asc")
-
-	// Calculate offset
-	offset := (page - 1) * pageSize
-
-	// Build query
-	query := config.DB.Model(&models.User{})
-
-	// Add search conditions
-	if search != "" {
-		searchPattern := "%" + strings.ToLower(search) + "%"
-		query = query.Where(
-			"LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(position) LIKE ?",
-			searchPattern, searchPattern, searchPattern,
-		)
-	}
-
-	// Count total records
+	// COUNT TOTAL USER
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
+	if err := config.DB.Model(models.User{}).Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"Success": false,
 			"Message": "Failed to count users",
@@ -129,17 +115,10 @@ func GetUsers(c *gin.Context) {
 		return
 	}
 
-	// Add sorting
-	orderClause := sortBy
-	if sortOrder == "desc" {
-		orderClause += " DESC"
-	} else {
-		orderClause += " ASC"
-	}
-
-	// Get users with pagination
-	var users []models.User
-	if err := query.Order(orderClause).Offset(offset).Limit(pageSize).Find(&users).Error; err != nil {
+	var users []models.GetUserTable
+	if err := config.DB.
+		Model(&models.User{}).
+		Scan(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"Success": false,
 			"Message": "Failed to fetch users",
@@ -147,25 +126,6 @@ func GetUsers(c *gin.Context) {
 		})
 		return
 	}
-
-	// Calculate pagination info
-	// totalPages := int((total + int64(pageSize) - 1) / int64(pageSize))
-	// hasNextPage := page < totalPages
-	// hasPreviousPage := page > 1
-
-	// pagination := PaginationInfo{
-	// 	CurrentPage:     page,
-	// 	PageSize:        pageSize,
-	// 	TotalItems:      total,
-	// 	TotalPages:      totalPages,
-	// 	HasNextPage:     hasNextPage,
-	// 	HasPreviousPage: hasPreviousPage,
-	// }
-
-	// response := gin{
-	// 	Users:      users,
-	// 	Pagination: pagination,
-	// }
 
 	c.JSON(http.StatusOK, gin.H{
 		"Success": true,
@@ -175,6 +135,7 @@ func GetUsers(c *gin.Context) {
 	})
 }
 
+// UPDATE
 func UpdateUser(c *gin.Context) {
 	id := c.Param("id")
 
@@ -202,21 +163,35 @@ func UpdateUser(c *gin.Context) {
 	user.Name = updatedData.Name
 	user.Email = updatedData.Email
 	user.Position = updatedData.Position
+	user.Company = updatedData.Company
+	user.Role = updatedData.Role
+	user.IsActive = updatedData.IsActive
 	user.UpdatedAt = time.Now()
 	user.UpdatedBy = updatedData.UpdatedBy
 	user.UpdatedBy = updatedData.UpdatedBy
 
 	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(updatedData.Password), bcrypt.DefaultCost)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Password hashing failed",
-			"message": "Failed to process password",
-		})
-		return
-	}
+	// Cek apakah password diisi
+	if updatedData.Password != "" {
+		if len(updatedData.Password) < 6 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"Success": false,
+				"Message": "Password must be at least 6 characters",
+			})
+			return
+		}
 
-	user.PasswordHash = string(hashedPassword)
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(updatedData.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"Success": false,
+				"Message": "Password hashing failed",
+				"Error":   err.Error(),
+			})
+			return
+		}
+		user.PasswordHash = string(hashedPassword)
+	}
 
 	if err := config.DB.Save(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -230,10 +205,17 @@ func UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"Success": true,
 		"Message": "User updated successfully",
-		"Data":    user,
+		"Data": gin.H{
+			"id":       user.ID,
+			"name":     user.Name,
+			"email":    user.Email,
+			"position": user.Position,
+			"role":     user.Role,
+		},
 	})
 }
 
+// DELETE
 func DeleteUser(c *gin.Context) {
 	// Get user ID from URL parameter
 	userID := c.Param("id")
