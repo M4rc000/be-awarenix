@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -147,46 +146,22 @@ func RegisterLandingPage(c *gin.Context) {
 
 // READ
 func GetLandingPages(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
-	search := c.Query("search")
-	sortBy := c.DefaultQuery("sortBy", "id")
-	sortOrder := c.DefaultQuery("sortOrder", "asc")
-
-	offset := (page - 1) * pageSize
-
-	query := config.DB.Model(&models.LandingPage{})
-
-	if search != "" {
-		searchPattern := "%" + strings.ToLower(search) + "%"
-		query = query.Where(
-			"LOWER(name) LIKE ?",
-			searchPattern, searchPattern, searchPattern,
-		)
-	}
+	query := config.DB.Table("landing_pages").
+		Select(`landing_pages.*, 
+            created_by_user.name AS created_by_name, 
+            updated_by_user.name AS updated_by_name`).
+		Joins(`LEFT JOIN users AS created_by_user ON created_by_user.id = landing_pages.created_by`).
+		Joins(`LEFT JOIN users AS updated_by_user ON updated_by_user.id = landing_pages.updated_by`)
 
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
+	query.Count(&total)
+
+	var data []models.GetLandingPage
+	if err := query.
+		Scan(&data).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"Success": false,
-			"Message": "Failed to count landing page",
-			"Error":   err.Error(),
-		})
-		return
-	}
-
-	orderClause := sortBy
-	if sortOrder == "desc" {
-		orderClause += " DESC"
-	} else {
-		orderClause += " ASC"
-	}
-
-	var templates []models.LandingPage
-	if err := query.Order(orderClause).Offset(offset).Limit(pageSize).Find(&templates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"Success": false,
-			"Message": "Failed to fetch landing page",
+			"Message": "Failed to fetch landing page data",
 			"Error":   err.Error(),
 		})
 		return
@@ -194,8 +169,8 @@ func GetLandingPages(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"Success": true,
-		"Message": "Landing pages retrieved successfully",
-		"Data":    templates,
+		"Message": "Landing page data retrieved successfully",
+		"Data":    data,
 		"Total":   total,
 	})
 }
@@ -214,12 +189,7 @@ func UpdateLandingPage(c *gin.Context) {
 		return
 	}
 
-	var updatedData struct {
-		Name      string `json:"name"`
-		Body      string `json:"body"`
-		UpdatedAt string `json:"updatedAt"`
-		UpdatedBy int8   `json:"updatedBy"`
-	}
+	var updatedData models.UpdateLandingPage
 
 	if err := c.ShouldBindJSON(&updatedData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

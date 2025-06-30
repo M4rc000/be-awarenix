@@ -73,6 +73,7 @@ func RegisterEmailTemplate(c *gin.Context) {
 		EnvelopeSender: input.EnvelopeSender,
 		Subject:        input.Subject,
 		Body:           input.Body,
+		TrackerImage:   input.TrackerImage,
 		CreatedAt:      time.Now(),
 		CreatedBy:      input.CreatedBy,
 	}
@@ -107,14 +108,7 @@ func UpdateEmailTemplate(c *gin.Context) {
 		return
 	}
 
-	var updatedData struct {
-		Name          string `json:"templateName"`
-		EnvelopSender string `json:"envelopeSender"`
-		Subject       string `json:"subject"`
-		Body          string `json:"bodyEmail"`
-		UpdatedAt     string `json:"updatedAt"`
-		UpdatedBy     int8   `json:"updatedBy"`
-	}
+	var updatedData models.EmailTemplateUpdate
 
 	if err := c.ShouldBindJSON(&updatedData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -129,6 +123,7 @@ func UpdateEmailTemplate(c *gin.Context) {
 	emailTemplate.EnvelopeSender = updatedData.EnvelopSender
 	emailTemplate.Subject = updatedData.Subject
 	emailTemplate.Body = updatedData.Body
+	emailTemplate.TrackerImage = updatedData.TrackerImage
 	emailTemplate.UpdatedBy = int(updatedData.UpdatedBy)
 	emailTemplate.UpdatedAt = time.Now()
 
