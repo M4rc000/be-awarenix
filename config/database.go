@@ -31,6 +31,8 @@ func InitDatabase() {
 
 	SeedUsers(db)
 	SeedRoles(db)
+	SeedMenus(db)
+	SeedSubmenus(db)
 
 	DB = db
 }
