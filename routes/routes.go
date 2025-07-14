@@ -19,6 +19,11 @@ func SetupRoutes(router *gin.Engine) {
 	api := router.Group("/api/v1")
 	api.Use(middlewares.JWTAuth())
 	{
+		access := api.Group("/access")
+		{
+			access.GET("/permissions", controllers.GetUserAccessPermissions)
+		}
+
 		groups := api.Group("/groups")
 		{
 			groups.POST("/register", controllers.RegisterGroup) // CREATE
@@ -92,6 +97,17 @@ func SetupRoutes(router *gin.Engine) {
 		activityLogs := api.Group("/activity-logs")
 		{
 			activityLogs.GET("/all", controllers.GetActivityLogs) // READ
+		}
+
+		campaigns := api.Group("/campaigns")
+		{
+			campaigns.POST("/create", controllers.RegisterCampaign)
+			campaigns.GET("/all", controllers.GetCampaigns)
+			campaigns.GET("/:id", controllers.GetCampaignDetail)
+			campaigns.PUT("/:id", controllers.UpdateCampaign)
+			campaigns.DELETE("/:id", controllers.DeleteCampaign)
+			campaigns.POST("/:id/launch", controllers.LaunchCampaign)
+			campaigns.POST("/:id/complete", controllers.CompleteCampaign)
 		}
 	}
 }
