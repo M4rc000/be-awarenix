@@ -1,12 +1,15 @@
 package services
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"net"
 	"net/smtp"
 	"strings"
+	"text/template"
 
+	"be-awarenix/config"
 	"be-awarenix/models"
 
 	"github.com/gophish/gomail"
@@ -102,52 +105,80 @@ func SendTestEmail(profile *models.SendingProfiles, recipientEmail, body, subjec
 	return nil
 }
 
-func SendEmail(profile models.SendingProfiles, toEmail, subject, body, landingPageBody string) error {
-	// Untuk demo, kita akan print saja.
-	// Di produksi, Anda akan menggunakan gomail atau net/smtp.
+func SendEmailToRecipient(rec models.Recipient, camp models.Campaign) {
+	// Domains
+	// backendBase := os.Getenv("APP_URL")
+	// log.Println(backendBase)
+	// if backendBase == "" {
+	backendBase := "localhost:3000"
+	// }
+	// frontendDomain := os.Getenv("FRONTEND_URL")
+	// log.Println(frontendDomain)
+	// if frontendDomain == "" {
+	frontendDomain := "localhost:5173"
+	// }
 
-	// Contoh menggunakan gomail
-	m := gomail.NewMessage()
-	m.SetHeader("From", profile.SmtpFrom)
-	m.SetHeader("To", toEmail)
-	m.SetHeader("Subject", subject)
-	m.SetBody("text/html", body) // Asumsi body adalah HTML
-
-	// Tambahkan custom headers jika ada
-	for _, header := range profile.EmailHeaders {
-		m.SetHeader(header.Header, header.Value)
+	// 1. Render email body
+	tpl, _ := template.New("email").Parse(camp.EmailTemplate.Body)
+	var buf bytes.Buffer
+	data := map[string]interface{}{
+		"Name": rec.Email,
+		"LandingURL": fmt.Sprintf(
+			"http://%s/lander?rid=%s&campaign=%d&page=%d",
+			frontendDomain, rec.UID, camp.ID, camp.LandingPageID,
+		),
 	}
+	tpl.Execute(&buf, data)
+	body := buf.String()
 
-	d := gomail.NewDialer(profile.Host, 587, profile.Username, profile.Password) // Port dan autentikasi
-	// Anda mungkin perlu menyesuaikan port, TLSConfig, dll. tergantung pada SMTP server
-	// d.TLSConfig = &tls.Config{InsecureSkipVerify: true} // Hanya untuk testing
+	// 2. Sisipkan tracking pixel (opened)
+	pixel := fmt.Sprintf(
+		`<img src="http://%s/track/open?rid=%s&campaign=%d" style="display:none"/>`,
+		backendBase, rec.UID, camp.ID,
+	)
+	body += pixel
+
+	// 3. Tambahkan tombol “Laporkan Email Ini”
+	reportLink := fmt.Sprintf(`
+      <div style="text-align:center; margin:24px 0;">
+        <a href="http://%s/track/report?rid=%s&campaign=%d"
+           style="
+             display:inline-block;
+             padding:10px 20px;
+             background-color:#e74c3c;
+             color:#ffffff;
+             text-decoration:none;
+             border-radius:4px;
+             font-family:Arial, sans-serif;
+             font-size:14px;
+           ">
+          Laporkan Email Ini
+        </a>
+      </div>`,
+		backendBase, rec.UID, camp.ID,
+	)
+	body += reportLink
+
+	// 4. Rewrite click links
+	body = RewriteLinks(body, rec.UID, camp.ID, camp.LandingPageID, frontendDomain)
+
+	// 5. SMTP send
+	m := gomail.NewMessage()
+	m.SetHeader("From", camp.SendingProfile.SmtpFrom)
+	m.SetHeader("To", rec.Email)
+	m.SetHeader("Subject", camp.EmailTemplate.Subject)
+	m.SetBody("text/html", body)
+
+	d := gomail.NewDialer(
+		camp.SendingProfile.Host,
+		camp.SendingProfile.Port,
+		camp.SendingProfile.Username,
+		camp.SendingProfile.Password,
+	)
 
 	if err := d.DialAndSend(m); err != nil {
-		return fmt.Errorf("could not send email: %w", err)
+		config.DB.Model(&rec).Updates(models.Recipient{Status: "failed", Error: err.Error()})
+		return
 	}
-
-	fmt.Printf("Email terkirim ke %s dari profil %s\n", toEmail, profile.Name)
-	return nil
-}
-
-// ProcessEmailBody mengganti placeholder dalam body email
-func ProcessEmailBody(emailBody string, member models.Member, campaignURL string, landingPageBody string) string {
-	// Contoh sederhana penggantian placeholder.
-	// Untuk yang lebih canggih, Anda bisa menggunakan text/template atau html/template.
-	processedBody := strings.ReplaceAll(emailBody, "{{.Recipient.Name}}", member.Name)
-	processedBody = strings.ReplaceAll(processedBody, "{{.Recipient.Email}}", member.Email)
-	processedBody = strings.ReplaceAll(processedBody, "{{.Recipient.Position}}", member.Position)
-	processedBody = strings.ReplaceAll(processedBody, "{{.Recipient.Company}}", member.Company)
-	processedBody = strings.ReplaceAll(processedBody, "{{.Recipient.Country}}", member.Country)
-	processedBody = strings.ReplaceAll(processedBody, "{{.URL}}", campaignURL)
-
-	// Jika ada kebutuhan untuk menyuntikkan bagian dari landingPageBody ke email (jarang, tapi mungkin)
-	processedBody = strings.ReplaceAll(processedBody, "{{.LandingPageBody}}", landingPageBody)
-
-	// Placeholder untuk tracking image (1x1 pixel gif)
-	// Anda akan membuat endpoint di router yang mengembalikan 1x1 gif dan mencatat kunjungan
-	trackingPixelURL := fmt.Sprintf("%s/track/%d/%s", campaignURL, member.GroupID, member.Email) // Contoh URL tracking
-	processedBody = strings.ReplaceAll(processedBody, "{{.Tracker}}", fmt.Sprintf("<img src=\"%s\" style=\"display:none;\"/>", trackingPixelURL))
-
-	return processedBody
+	config.DB.Model(&rec).Update("status", "sent")
 }

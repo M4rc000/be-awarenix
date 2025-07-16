@@ -2,15 +2,17 @@
 package controllers
 
 import (
+	"be-awarenix/config"
 	"be-awarenix/models"
 	"be-awarenix/services"
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -65,11 +67,10 @@ func RegisterCampaign(c *gin.Context) {
 	}
 
 	// Dapatkan instance DB dari context
-	db := c.MustGet("db").(*gorm.DB)
 
 	// Verifikasi keberadaan Group, EmailTemplate, LandingPage, SendingProfile
 	var group models.Group
-	if err := db.First(&group, input.GroupID).Error; err != nil {
+	if err := config.DB.First(&group, input.GroupID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Group ID tidak ditemukan",
@@ -79,7 +80,7 @@ func RegisterCampaign(c *gin.Context) {
 	}
 
 	var emailTemplate models.EmailTemplate
-	if err := db.First(&emailTemplate, input.EmailTemplateID).Error; err != nil {
+	if err := config.DB.First(&emailTemplate, input.EmailTemplateID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Email Template ID tidak ditemukan",
@@ -89,7 +90,7 @@ func RegisterCampaign(c *gin.Context) {
 	}
 
 	var landingPage models.LandingPage
-	if err := db.First(&landingPage, input.LandingPageID).Error; err != nil {
+	if err := config.DB.First(&landingPage, input.LandingPageID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Landing Page ID tidak ditemukan",
@@ -99,7 +100,7 @@ func RegisterCampaign(c *gin.Context) {
 	}
 
 	var sendingProfile models.SendingProfiles
-	if err := db.First(&sendingProfile, input.SendingProfileID).Error; err != nil {
+	if err := config.DB.First(&sendingProfile, input.SendingProfileID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Sending Profile ID tidak ditemukan",
@@ -117,15 +118,15 @@ func RegisterCampaign(c *gin.Context) {
 		LandingPageID:    input.LandingPageID,
 		SendingProfileID: input.SendingProfileID,
 		URL:              input.URL,
-		CreatedBy:        input.CreatedBy,
+		CreatedBy:        int(input.CreatedBy),
 		CreatedAt:        time.Now(),
-		Status:           "draft", // Status awal kampanye
+		Status:           "draft",
 	}
 
-	if err := db.Create(&campaign).Error; err != nil {
+	if err := config.DB.Create(&campaign).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Gagal membuat kampanye: " + err.Error(),
+			"message": "Failed to create campaign: " + err.Error(),
 		})
 		return
 	}
@@ -134,29 +135,52 @@ func RegisterCampaign(c *gin.Context) {
 		"status":  "success",
 		"message": "Kampanye berhasil didaftarkan",
 		"data": models.CampaignResponse{
-			ID:               campaign.ID,
-			Name:             campaign.Name,
-			LaunchDate:       campaign.LaunchDate,
-			SendEmailBy:      campaign.SendEmailBy,
-			GroupID:          campaign.GroupID,
-			EmailTemplateID:  campaign.EmailTemplateID,
-			LandingPageID:    campaign.LandingPageID,
-			SendingProfileID: campaign.SendingProfileID,
-			URL:              campaign.URL,
-			CreatedBy:        campaign.CreatedBy,
-			CreatedAt:        campaign.CreatedAt,
-			UpdatedAt:        campaign.UpdatedAt,
-			Status:           campaign.Status,
-			CompletedDate:    campaign.CompletedDate,
+			ID:          int(campaign.ID),
+			Name:        campaign.Name,
+			LaunchDate:  campaign.LaunchDate,
+			SendEmailBy: campaign.SendEmailBy,
+			URL:         campaign.URL,
+			Status:      campaign.Status,
 		},
 	})
 }
 
-// GetCampaigns retrieves all campaigns
 func GetCampaigns(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
+	// 1. Parse query params
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	search := c.Query("search")
+	sortBy := c.DefaultQuery("sortBy", "created_at")
+	order := c.DefaultQuery("order", "desc") // 'asc' atau 'desc'
+
+	offset := (page - 1) * limit
+
+	// 2. Build base query
+	db := config.DB.Model(&models.Campaign{})
+
+	// 3. Apply search filter
+	if search != "" {
+		// Contoh search di kolom name
+		db = db.Where("name LIKE ?", "%"+search+"%")
+	}
+
+	// 4. Hitung total data (after filter)
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Gagal menghitung total kampanye: " + err.Error(),
+		})
+		return
+	}
+
+	// 5. Ambil page data dengan sort, limit, offset
 	var campaigns []models.Campaign
-	if err := db.Find(&campaigns).Error; err != nil {
+	if err := db.
+		Order(fmt.Sprintf("%s %s", sortBy, order)).
+		Limit(limit).
+		Offset(offset).
+		Find(&campaigns).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Gagal mengambil kampanye: " + err.Error(),
@@ -164,40 +188,78 @@ func GetCampaigns(c *gin.Context) {
 		return
 	}
 
-	var campaignResponses []models.CampaignResponse
-	for _, campaign := range campaigns {
-		campaignResponses = append(campaignResponses, models.CampaignResponse{
-			ID:               campaign.ID,
-			Name:             campaign.Name,
-			LaunchDate:       campaign.LaunchDate,
-			SendEmailBy:      campaign.SendEmailBy,
-			GroupID:          campaign.GroupID,
-			EmailTemplateID:  campaign.EmailTemplateID,
-			LandingPageID:    campaign.LandingPageID,
-			SendingProfileID: campaign.SendingProfileID,
-			URL:              campaign.URL,
-			CreatedBy:        campaign.CreatedBy,
-			CreatedAt:        campaign.CreatedAt,
-			UpdatedAt:        campaign.UpdatedAt,
-			Status:           campaign.Status,
-			CompletedDate:    campaign.CompletedDate,
+	// 6. Map ke response DTO dan tambahkan statistik
+	var out []models.CampaignResponse
+	for _, camp := range campaigns {
+		// Inisialisasi statistik
+		emailSent := 0
+		emailOpened := 0
+		clicks := 0
+		submitted := 0
+		reported := 0
+
+		// Hitung Email Sent (dari Recipient status 'sent')
+		// Asumsi status 'sent' ada di tabel Recipient
+		var sentCount int64
+		config.DB.Model(&models.Recipient{}).Where("campaign_id = ? AND status = ?", camp.ID, "sent").Count(&sentCount)
+		emailSent = int(sentCount)
+
+		// Hitung Event Types (opened, clicked, submitted, reported)
+		var openedCount int64
+		config.DB.Model(&models.Event{}).Where("campaign_id = ? AND type = ?", camp.ID, models.Opened).Count(&openedCount)
+		emailOpened = int(openedCount)
+
+		var clickedCount int64
+		config.DB.Model(&models.Event{}).Where("campaign_id = ? AND type = ?", camp.ID, models.Clicked).Count(&clickedCount)
+		clicks = int(clickedCount)
+
+		var submittedCount int64
+		config.DB.Model(&models.Event{}).Where("campaign_id = ? AND type = ?", camp.ID, models.Submitted).Count(&submittedCount)
+		submitted = int(submittedCount)
+
+		var reportedCount int64
+		config.DB.Model(&models.Event{}).Where("campaign_id = ? AND type = ?", camp.ID, models.Reported).Count(&reportedCount)
+		reported = int(reportedCount)
+
+		out = append(out, models.CampaignResponse{
+			ID:               int(camp.ID),
+			Name:             camp.Name,
+			LaunchDate:       camp.LaunchDate,
+			SendEmailBy:      camp.SendEmailBy,
+			GroupID:          int(camp.GroupID),
+			EmailTemplateID:  int(camp.EmailTemplateID),
+			LandingPageID:    int(camp.LandingPageID),
+			SendingProfileID: int(camp.SendingProfileID),
+			URL:              camp.URL,
+			CreatedBy:        camp.CreatedBy,
+			CreatedAt:        camp.CreatedAt,
+			UpdatedAt:        camp.UpdatedAt,
+			Status:           camp.Status,
+			EmailSent:        emailSent,
+			EmailOpened:      emailOpened,
+			EmailClicks:      clicks,
+			EmailSubmitted:   submitted,
+			EmailReported:    reported,
 		})
 	}
 
+	// 7. Kirim JSON
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
-		"message": "Kampanye berhasil diambil",
-		"data":    campaignResponses,
+		"message": "Campaign data retrieved",
+		"data":    out,
+		"total":   total,
+		"page":    page,
+		"limit":   limit,
 	})
 }
 
 // GetCampaignDetail retrieves a single campaign by ID
 func GetCampaignDetail(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
 	id := c.Param("id")
 
 	var campaign models.Campaign
-	if err := db.First(&campaign, id).Error; err != nil {
+	if err := config.DB.First(&campaign, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{
 				"status":  "error",
@@ -212,35 +274,67 @@ func GetCampaignDetail(c *gin.Context) {
 		return
 	}
 
+	// Inisialisasi statistik untuk detail
+	emailSent := 0
+	emailOpened := 0
+	clicks := 0
+	submitted := 0
+	reported := 0
+
+	// Hitung Email Sent (dari Recipient status 'sent')
+	var sentCount int64
+	config.DB.Model(&models.Recipient{}).Where("campaign_id = ? AND status = ?", campaign.ID, "sent").Count(&sentCount)
+	emailSent = int(sentCount)
+
+	// Hitung Event Types (opened, clicked, submitted, reported)
+	var openedCount int64
+	config.DB.Model(&models.Event{}).Where("campaign_id = ? AND type = ?", campaign.ID, models.Opened).Count(&openedCount)
+	emailOpened = int(openedCount)
+
+	var clickedCount int64
+	config.DB.Model(&models.Event{}).Where("campaign_id = ? AND type = ?", campaign.ID, models.Clicked).Count(&clickedCount)
+	clicks = int(clickedCount)
+
+	var submittedCount int64
+	config.DB.Model(&models.Event{}).Where("campaign_id = ? AND type = ?", campaign.ID, models.Submitted).Count(&submittedCount)
+	submitted = int(submittedCount)
+
+	var reportedCount int64
+	config.DB.Model(&models.Event{}).Where("campaign_id = ? AND type = ?", campaign.ID, models.Reported).Count(&reportedCount)
+	reported = int(reportedCount)
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "Detail kampanye berhasil diambil",
 		"data": models.CampaignResponse{
-			ID:               campaign.ID,
+			ID:               int(campaign.ID),
 			Name:             campaign.Name,
 			LaunchDate:       campaign.LaunchDate,
 			SendEmailBy:      campaign.SendEmailBy,
-			GroupID:          campaign.GroupID,
-			EmailTemplateID:  campaign.EmailTemplateID,
-			LandingPageID:    campaign.LandingPageID,
-			SendingProfileID: campaign.SendingProfileID,
+			GroupID:          int(campaign.GroupID),
+			EmailTemplateID:  int(campaign.EmailTemplateID),
+			LandingPageID:    int(campaign.LandingPageID),
+			SendingProfileID: int(campaign.SendingProfileID),
 			URL:              campaign.URL,
 			CreatedBy:        campaign.CreatedBy,
 			CreatedAt:        campaign.CreatedAt,
 			UpdatedAt:        campaign.UpdatedAt,
 			Status:           campaign.Status,
-			CompletedDate:    campaign.CompletedDate,
+			EmailSent:        emailSent,
+			EmailOpened:      emailOpened,
+			EmailClicks:      clicks,
+			EmailSubmitted:   submitted,
+			EmailReported:    reported,
 		},
 	})
 }
 
 // UpdateCampaign updates an existing campaign
 func UpdateCampaign(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
 	id := c.Param("id")
 
 	var existingCampaign models.Campaign
-	if err := db.First(&existingCampaign, id).Error; err != nil {
+	if err := config.DB.First(&existingCampaign, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{
 				"status":  "error",
@@ -302,7 +396,7 @@ func UpdateCampaign(c *gin.Context) {
 
 	// Verifikasi keberadaan Group, EmailTemplate, LandingPage, SendingProfile
 	var group models.Group
-	if err := db.First(&group, input.GroupID).Error; err != nil {
+	if err := config.DB.First(&group, input.GroupID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Group ID tidak ditemukan",
@@ -312,7 +406,7 @@ func UpdateCampaign(c *gin.Context) {
 	}
 
 	var emailTemplate models.EmailTemplate
-	if err := db.First(&emailTemplate, input.EmailTemplateID).Error; err != nil {
+	if err := config.DB.First(&emailTemplate, input.EmailTemplateID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Email Template ID tidak ditemukan",
@@ -322,7 +416,7 @@ func UpdateCampaign(c *gin.Context) {
 	}
 
 	var landingPage models.LandingPage
-	if err := db.First(&landingPage, input.LandingPageID).Error; err != nil {
+	if err := config.DB.First(&landingPage, input.LandingPageID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Landing Page ID tidak ditemukan",
@@ -332,7 +426,7 @@ func UpdateCampaign(c *gin.Context) {
 	}
 
 	var sendingProfile models.SendingProfiles
-	if err := db.First(&sendingProfile, input.SendingProfileID).Error; err != nil {
+	if err := config.DB.First(&sendingProfile, input.SendingProfileID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Sending Profile ID tidak ditemukan",
@@ -353,7 +447,7 @@ func UpdateCampaign(c *gin.Context) {
 	existingCampaign.UpdatedAt = time.Now()
 	// CreatedBy tidak diubah saat update, UpdatedBy bisa ditambahkan jika ada di struct
 
-	if err := db.Save(&existingCampaign).Error; err != nil {
+	if err := config.DB.Save(&existingCampaign).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Gagal memperbarui kampanye: " + err.Error(),
@@ -365,318 +459,84 @@ func UpdateCampaign(c *gin.Context) {
 		"status":  "success",
 		"message": "Kampanye berhasil diperbarui",
 		"data": models.CampaignResponse{
-			ID:               existingCampaign.ID,
+			ID:               int(existingCampaign.ID),
 			Name:             existingCampaign.Name,
 			LaunchDate:       existingCampaign.LaunchDate,
 			SendEmailBy:      existingCampaign.SendEmailBy,
-			GroupID:          existingCampaign.GroupID,
-			EmailTemplateID:  existingCampaign.EmailTemplateID,
-			LandingPageID:    existingCampaign.LandingPageID,
-			SendingProfileID: existingCampaign.SendingProfileID,
+			GroupID:          int(existingCampaign.GroupID),
+			EmailTemplateID:  int(existingCampaign.EmailTemplateID),
+			LandingPageID:    int(existingCampaign.LandingPageID),
+			SendingProfileID: int(existingCampaign.SendingProfileID),
 			URL:              existingCampaign.URL,
 			CreatedBy:        existingCampaign.CreatedBy,
 			CreatedAt:        existingCampaign.CreatedAt,
 			UpdatedAt:        existingCampaign.UpdatedAt,
 			Status:           existingCampaign.Status,
-			CompletedDate:    existingCampaign.CompletedDate,
 		},
 	})
 }
 
 // DeleteCampaign deletes a campaign by ID
 func DeleteCampaign(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
 	id := c.Param("id")
 
 	var campaign models.Campaign
-	if err := db.First(&campaign, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"status":  "error",
-				"message": "Kampanye tidak ditemukan",
-			})
+	if err := config.DB.First(&campaign, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "Campaign not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Gagal menemukan kampanye: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to find campaign"})
 		return
 	}
 
-	// Tidak boleh menghapus kampanye yang sedang berjalan/selesai
 	if campaign.Status == "in_progress" || campaign.Status == "completed" {
-		c.JSON(http.StatusForbidden, gin.H{
-			"status":  "error",
-			"message": "Tidak dapat menghapus kampanye yang sedang berjalan atau sudah selesai",
-		})
+		c.JSON(http.StatusForbidden, gin.H{"status": "error", "message": "Campaign is running or finished"})
 		return
 	}
 
-	if err := db.Delete(&campaign).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Gagal menghapus kampanye: " + err.Error(),
-		})
+	tx := config.DB.Begin()
+
+	// Hapus Event dan Recipient
+	if err := tx.Where("campaign_id = ?", campaign.ID).Delete(&models.Event{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to delete Event"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "Kampanye berhasil dihapus",
-		"data":    nil, // Data null jika tidak ada yang dikembalikan
-	})
+	if err := tx.Where("campaign_id = ?", campaign.ID).Delete(&models.Recipient{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal menghapus Recipient"})
+		return
+	}
+
+	// Hapus Campaign
+	if err := tx.Delete(&campaign).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to delete Recipient"})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Campaign and related data successfully deleted"})
 }
 
-func LaunchCampaign(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	idStr := c.Param("id")
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "ID kampanye tidak valid",
-		})
-		return
-	}
-
-	// Panggil fungsi inti peluncuran kampanye
-	campaign, err := PerformCampaignLaunch(db, uint(id))
-	if err != nil {
-		// Cek jenis error untuk memberikan respons yang lebih spesifik
-		if err == gorm.ErrRecordNotFound || err.Error() == "campaign not found" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"status":  "error",
-				"message": "Kampanye tidak ditemukan",
-			})
-		} else if err.Error() == "campaign not in launchable status" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  "error",
-				"message": "Kampanye tidak dapat diluncurkan karena statusnya tidak 'draft' atau 'stopped'",
-			})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"message": "Gagal meluncurkan kampanye: " + err.Error(),
-			})
+func SendCampaign(camp models.Campaign) {
+	for _, member := range camp.Group.Members {
+		rid := uuid.NewString()
+		rec := models.Recipient{
+			UID:        rid,
+			CampaignID: camp.ID,
+			UserID:     member.ID,
+			Email:      member.Email,
+			Status:     "pending",
+			CreatedAt:  time.Now(),
 		}
-		return
+		config.DB.Create(&rec)
+
+		go services.SendEmailToRecipient(rec, camp)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "Kampanye berhasil diluncurkan",
-		"data": models.CampaignResponse{
-			ID:               campaign.ID,
-			Name:             campaign.Name,
-			LaunchDate:       campaign.LaunchDate,
-			SendEmailBy:      campaign.SendEmailBy,
-			GroupID:          campaign.GroupID,
-			EmailTemplateID:  campaign.EmailTemplateID,
-			LandingPageID:    campaign.LandingPageID,
-			SendingProfileID: campaign.SendingProfileID,
-			URL:              campaign.URL,
-			CreatedBy:        campaign.CreatedBy,
-			CreatedAt:        campaign.CreatedAt,
-			UpdatedAt:        campaign.UpdatedAt,
-			Status:           campaign.Status,
-			CompletedDate:    campaign.CompletedDate,
-		},
-	})
-}
-
-// PerformCampaignLaunch adalah logika inti untuk meluncurkan kampanye, dapat dipanggil secara internal atau dari HTTP handler
-func PerformCampaignLaunch(db *gorm.DB, campaignID uint) (*models.Campaign, error) {
-	var campaign models.Campaign
-	if err := db.First(&campaign, campaignID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("campaign not found")
-		}
-		return nil, fmt.Errorf("failed to find campaign: %w", err)
-	}
-
-	// Hanya kampanye dengan status 'draft' atau 'stopped' yang bisa diluncurkan
-	if campaign.Status != "draft" && campaign.Status != "stopped" {
-		return nil, fmt.Errorf("campaign not in launchable status")
-	}
-
-	// Ubah status kampanye menjadi 'in_progress'
-	campaign.Status = "in_progress"
-	if err := db.Save(&campaign).Error; err != nil {
-		return nil, fmt.Errorf("failed to update campaign status to in_progress: %w", err)
-	}
-
-	// --- Logika Peluncuran Kampanye Sebenarnya ---
-	// Ini adalah bagian yang akan dijalankan di goroutine terpisah
-	go StartEmailSendingProcess(db, campaign)
-
-	return &campaign, nil
-}
-
-// StartEmailSendingProcess memulai proses pengiriman email untuk kampanye yang diberikan
-func StartEmailSendingProcess(db *gorm.DB, campaign models.Campaign) {
-	// Ambil detail Email Template, Landing Page, Sending Profile, Group dan Members
-	var emailTemplate models.EmailTemplate
-	if err := db.First(&emailTemplate, campaign.EmailTemplateID).Error; err != nil {
-		fmt.Printf("Error fetching email template %d for campaign %d: %v\n", campaign.EmailTemplateID, campaign.ID, err)
-		return // Hentikan proses jika template tidak ditemukan
-	}
-
-	var landingPage models.LandingPage
-	if err := db.First(&landingPage, campaign.LandingPageID).Error; err != nil {
-		fmt.Printf("Error fetching landing page %d for campaign %d: %v\n", campaign.LandingPageID, campaign.ID, err)
-		return // Hentikan proses jika landing page tidak ditemukan
-	}
-
-	var sendingProfile models.SendingProfiles
-	if err := db.Preload("EmailHeaders").First(&sendingProfile, campaign.SendingProfileID).Error; err != nil {
-		fmt.Printf("Error fetching sending profile %d for campaign %d: %v\n", campaign.SendingProfileID, campaign.ID, err)
-		return // Hentikan proses jika sending profile tidak ditemukan
-	}
-
-	var group models.Group
-	if err := db.Preload("Members").First(&group, campaign.GroupID).Error; err != nil {
-		fmt.Printf("Error fetching group %d for campaign %d: %v\n", campaign.GroupID, campaign.ID, err)
-		return // Hentikan proses jika group tidak ditemukan
-	}
-
-	fmt.Printf("Meluncurkan kampanye '%s' untuk %d anggota grup '%s'...\n", campaign.Name, len(group.Members), group.Name)
-	for _, member := range group.Members {
-		emailBody := emailTemplate.Body
-		processedEmailBody := services.ProcessEmailBody(emailBody, member, campaign.URL, landingPage.Body)
-
-		err := services.SendEmail(sendingProfile, member.Email, emailTemplate.Subject, processedEmailBody, landingPage.Body)
-		if err != nil {
-			fmt.Printf("Gagal mengirim email ke %s: %v\n", member.Email, err)
-			// TODO: Log kegagalan, update status member di database jika diperlukan
-		} else {
-			fmt.Printf("Email berhasil dikirim ke %s\n", member.Email)
-			// TODO: Update status member di database (misal: "email_sent")
-		}
-
-		// Tambahkan delay jika SendEmailBy ditentukan untuk distribusi email
-		if campaign.SendEmailBy != nil && campaign.LaunchDate.Before(*campaign.SendEmailBy) && len(group.Members) > 1 {
-			duration := campaign.SendEmailBy.Sub(campaign.LaunchDate)
-			if duration > 0 {
-				delayPerEmail := duration / time.Duration(len(group.Members))
-				time.Sleep(delayPerEmail)
-			}
-		}
-	}
-	fmt.Printf("Proses pengiriman email untuk kampanye '%s' selesai.\n", campaign.Name)
-
-	// Opsi: Setelah semua email dikirim, secara otomatis tandai kampanye sebagai 'completed'
-	// campaign.Status = "completed"
-	// now := time.Now()
-	// campaign.CompletedDate = &now
-	// if err := db.Save(&campaign).Error; err != nil {
-	//     log.Printf("Failed to mark campaign %d as completed after sending: %v", campaign.ID, err)
-	// }
-}
-
-// CompleteCampaign handles marking a campaign as completed
-func CompleteCampaign(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	id := c.Param("id")
-
-	var campaign models.Campaign
-	if err := db.First(&campaign, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"status":  "error",
-				"message": "Kampanye tidak ditemukan",
-			})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Gagal menemukan kampanye: " + err.Error(),
-		})
-		return
-	}
-
-	if campaign.Status == "completed" {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "success",
-			"message": "Kampanye sudah selesai",
-			"data": models.CampaignResponse{
-				ID:               campaign.ID,
-				Name:             campaign.Name,
-				LaunchDate:       campaign.LaunchDate,
-				SendEmailBy:      campaign.SendEmailBy,
-				GroupID:          campaign.GroupID,
-				EmailTemplateID:  campaign.EmailTemplateID,
-				LandingPageID:    campaign.LandingPageID,
-				SendingProfileID: campaign.SendingProfileID,
-				URL:              campaign.URL,
-				CreatedBy:        campaign.CreatedBy,
-				CreatedAt:        campaign.CreatedAt,
-				UpdatedAt:        campaign.UpdatedAt,
-				Status:           campaign.Status,
-				CompletedDate:    campaign.CompletedDate,
-			},
-		})
-		return
-	}
-
-	campaign.Status = "completed"
-	now := time.Now()
-	campaign.CompletedDate = &now
-	if err := db.Save(&campaign).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Gagal menyelesaikan kampanye: " + err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "Kampanye berhasil diselesaikan",
-		"data": models.CampaignResponse{
-			ID:               campaign.ID,
-			Name:             campaign.Name,
-			LaunchDate:       campaign.LaunchDate,
-			SendEmailBy:      campaign.SendEmailBy,
-			GroupID:          campaign.GroupID,
-			EmailTemplateID:  campaign.EmailTemplateID,
-			LandingPageID:    campaign.LandingPageID,
-			SendingProfileID: campaign.SendingProfileID,
-			URL:              campaign.URL,
-			CreatedBy:        campaign.CreatedBy,
-			CreatedAt:        campaign.CreatedAt,
-			UpdatedAt:        campaign.UpdatedAt,
-			Status:           campaign.Status,
-			CompletedDate:    campaign.CompletedDate,
-		},
-	})
-}
-
-func CheckAndLaunchCampaigns(db *gorm.DB) {
-	var campaigns []models.Campaign
-	// Cari kampanye yang statusnya 'draft' atau 'stopped' (jika ingin bisa dijadwalkan ulang setelah dihentikan)
-	// DAN launch_date-nya sudah tiba atau terlewati
-	result := db.Where("(status = ? OR status = ?) AND launch_date <= ?", "draft", "stopped", time.Now()).Find(&campaigns)
-	if result.Error != nil {
-		// Jangan gunakan log.Fatal di sini karena akan menghentikan aplikasi. Gunakan log.Printf.
-		log.Printf("Error checking campaigns for launch: %v", result.Error)
-		return
-	}
-
-	if len(campaigns) > 0 {
-		log.Printf("Found %d campaign(s) ready for launch.", len(campaigns))
-	}
-
-	for _, campaign := range campaigns {
-		log.Printf("Attempting to launch campaign '%s' (ID: %d) with LaunchDate: %s...", campaign.Name, campaign.ID, campaign.LaunchDate.Format(time.RFC3339))
-
-		// Panggil logika inti peluncuran kampanye yang sudah di-refactor
-		_, err := PerformCampaignLaunch(db, uint(campaign.ID))
-		if err != nil {
-			log.Printf("Failed to launch campaign %d ('%s') via scheduler: %v", campaign.ID, campaign.Name, err)
-			// Anda mungkin ingin mencatat error ini ke activity logs atau sistem monitoring
-		} else {
-			log.Printf("Successfully launched campaign %d ('%s') via scheduler.", campaign.ID, campaign.Name)
-		}
-	}
+	config.DB.Model(&camp).Update("status", "sent")
 }

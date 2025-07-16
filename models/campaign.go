@@ -6,49 +6,61 @@ import (
 )
 
 type Campaign struct {
-	ID               int64      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name             string     `gorm:"type:varchar(50);not null" json:"name" binding:"required"`
-	LaunchDate       time.Time  `gorm:"type:datetime;not null" json:"launch_date" binding:"required"` // Pastikan ini time.Time
-	SendEmailBy      *time.Time `gorm:"type:datetime;null" json:"send_email_by,omitempty"`
-	GroupID          int64      `gorm:"not null;index" json:"group_id" binding:"required"`
-	EmailTemplateID  int64      `gorm:"not null;index" json:"email_template_id" binding:"required"`
-	LandingPageID    int64      `gorm:"not null;index" json:"landing_page_id" binding:"required"`
-	SendingProfileID int64      `gorm:"not null;index" json:"sending_profile_id" binding:"required"`
-	URL              string     `gorm:"type:varchar(255);not null" json:"url" binding:"required,url"`
-	CreatedBy        int64      `gorm:"type:tinyint(3);null" json:"created_by"`
-	CreatedAt        time.Time  `gorm:"type:datetime;null" json:"created_at"`
-	UpdatedAt        time.Time  `gorm:"type:datetime;null" json:"updated_at"`
-	Status           string     `gorm:"type:varchar(30);null" json:"status"`
-	CompletedDate    *time.Time `gorm:"type:datetime;null" json:"completed_date,omitempty"`
+	ID               uint       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name             string     `gorm:"type:varchar(100);not null"   json:"name"`
+	LaunchDate       time.Time  `gorm:"type:datetime;not null"       json:"launchDate"`
+	SendEmailBy      *time.Time `gorm:"type:datetime"                json:"sendEmailBy,omitempty"`
+	GroupID          uint       `gorm:"not null;index"               json:"groupId"`
+	EmailTemplateID  uint       `gorm:"not null;index"               json:"emailTemplateId"`
+	LandingPageID    uint       `gorm:"not null;index"               json:"landingPageId"`
+	SendingProfileID uint       `gorm:"not null;index"               json:"sendingProfileId"`
+	URL              string     `gorm:"type:varchar(255);not null"   json:"url"`
+	Status           string     `gorm:"type:varchar(20);default:'draft'" json:"status"`
+	CreatedAt        time.Time  `gorm:"type:datetime;null" json:"createdAt"`
+	CreatedBy        int        `gorm:"type:tinyint(3);null" json:"createdBy"`
+	UpdatedAt        time.Time  `gorm:"type:datetime;null" json:"updatedAt"`
+	UpdatedBy        int        `gorm:"type:tinyint(3);null" json:"updatedBy"`
+
+	// Relasi untuk preload
+	Group          Group           `gorm:"foreignKey:GroupID" json:"group"`
+	EmailTemplate  EmailTemplate   `gorm:"foreignKey:EmailTemplateID" json:"emailTemplate"`
+	LandingPage    LandingPage     `gorm:"foreignKey:LandingPageID" json:"landingPage"`
+	SendingProfile SendingProfiles `gorm:"foreignKey:SendingProfileID" json:"sendingProfile"`
 }
 
 type CampaignRequest struct {
 	Name             string  `json:"name" binding:"required"`
 	LaunchDate       string  `json:"launch_date" binding:"required"` // String untuk JSON dari frontend
 	SendEmailBy      *string `json:"send_email_by,omitempty"`
-	GroupID          int64   `json:"group_id" binding:"required"`
-	EmailTemplateID  int64   `json:"email_template_id" binding:"required"`
-	LandingPageID    int64   `json:"landing_page_id" binding:"required"`
-	SendingProfileID int64   `json:"sending_profile_id" binding:"required"`
+	GroupID          uint    `json:"group_id" binding:"required"`
+	EmailTemplateID  uint    `json:"email_template_id" binding:"required"`
+	LandingPageID    uint    `json:"landing_page_id" binding:"required"`
+	SendingProfileID uint    `json:"sending_profile_id" binding:"required"`
 	URL              string  `json:"url" binding:"required,url"`
-	CreatedBy        int64   `json:"created_by"`
+	CreatedBy        uint    `json:"created_by"`
 }
 
 type CampaignResponse struct {
-	ID               int64      `json:"id"`
+	ID               int        `json:"id"`
 	Name             string     `json:"name"`
 	LaunchDate       time.Time  `json:"launch_date"`
 	SendEmailBy      *time.Time `json:"send_email_by,omitempty"`
-	GroupID          int64      `json:"group_id"`
-	EmailTemplateID  int64      `json:"email_template_id"`
-	LandingPageID    int64      `json:"landing_page_id"`
-	SendingProfileID int64      `json:"sending_profile_id"`
+	GroupID          int        `json:"group_id"`
+	EmailTemplateID  int        `json:"email_template_id"`
+	LandingPageID    int        `json:"landing_page_id"`
+	SendingProfileID int        `json:"sending_profile_id"`
 	URL              string     `json:"url"`
-	CreatedBy        int64      `json:"created_by"`
+	CreatedBy        int        `json:"created_by"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 	Status           string     `json:"status"`
 	CompletedDate    *time.Time `json:"completed_date,omitempty"`
+	// Tambahan field untuk statistik kampanye
+	EmailSent      int `json:"email_sent"`
+	EmailOpened    int `json:"email_opened"`
+	EmailClicks    int `json:"email_clicks"`
+	EmailSubmitted int `json:"email_submitted"`
+	EmailReported  int `json:"email_reported"`
 }
 
 type NewCampaignResponse struct {
