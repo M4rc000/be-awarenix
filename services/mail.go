@@ -107,22 +107,27 @@ func SendTestEmail(profile *models.SendingProfiles, recipientEmail, body, subjec
 
 func SendEmailToRecipient(rec models.Recipient, camp models.Campaign) {
 	// Domains
-	// backendBase := os.Getenv("APP_URL")
-	// log.Println(backendBase)
-	// if backendBase == "" {
 	backendBase := "localhost:3000"
-	// }
-	// frontendDomain := os.Getenv("FRONTEND_URL")
-	// log.Println(frontendDomain)
-	// if frontendDomain == "" {
 	frontendDomain := "localhost:5173"
-	// }
+
+	// --- AMBIL NAMA RECIPIENT DARI GROUP MEMBER ---
+	var recipientName string
+	var gm models.GroupMember
+	err := config.DB.
+		Where("group_id = ? AND user_id = ?", camp.GroupID, rec.UserID).
+		First(&gm).Error
+	if err != nil {
+		// fallback ke email jika nama tidak ditemukan
+		recipientName = rec.Email
+	} else {
+		recipientName = gm.Name
+	}
 
 	// 1. Render email body
 	tpl, _ := template.New("email").Parse(camp.EmailTemplate.Body)
 	var buf bytes.Buffer
 	data := map[string]interface{}{
-		"Name": rec.Email,
+		"Name": recipientName,
 		"LandingURL": fmt.Sprintf(
 			"http://%s/lander?rid=%s&campaign=%d&page=%d",
 			frontendDomain, rec.UID, camp.ID, camp.LandingPageID,
@@ -159,8 +164,16 @@ func SendEmailToRecipient(rec models.Recipient, camp models.Campaign) {
 	)
 	body += reportLink
 
-	// 4. Rewrite click links
-	body = RewriteLinks(body, rec.UID, camp.ID, camp.LandingPageID, frontendDomain)
+	// 4. Rewrite click links (termasuk placeholder {{.Name}} & {{.Email}})
+	body = RewriteLinks(
+		body,
+		rec.UID,
+		camp.ID,
+		camp.LandingPageID,
+		frontendDomain,
+		recipientName,
+		rec.Email,
+	)
 
 	// 5. SMTP send
 	m := gomail.NewMessage()

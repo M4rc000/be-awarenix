@@ -98,12 +98,27 @@ func RegisterSendingProfile(c *gin.Context) {
 
 // READ
 func GetSendingProfiles(c *gin.Context) {
-	query := config.DB.Table("sending_profiles").
-		Select(`sending_profiles.*, 
-            created_by_user.name AS created_by_name, 
-            updated_by_user.name AS updated_by_name`).
-		Joins(`LEFT JOIN users AS created_by_user ON created_by_user.id = sending_profiles.created_by`).
-		Joins(`LEFT JOIN users AS updated_by_user ON updated_by_user.id = sending_profiles.updated_by`)
+	userIDScope, roleScope, errorStatus := services.GetRoleScope(c)
+	if !errorStatus {
+		return
+	}
+
+	var query *gorm.DB
+	if roleScope == 1 {
+		query = config.DB.Table("sending_profiles").
+			Select(`sending_profiles.*, 
+				created_by_user.name AS created_by_name, 
+				updated_by_user.name AS updated_by_name`).
+			Joins(`LEFT JOIN users AS created_by_user ON created_by_user.id = sending_profiles.created_by`).
+			Joins(`LEFT JOIN users AS updated_by_user ON updated_by_user.id = sending_profiles.updated_by`)
+	} else {
+		query = config.DB.Table("sending_profiles").
+			Select(`sending_profiles.*, 
+				created_by_user.name AS created_by_name, 
+				updated_by_user.name AS updated_by_name`).
+			Joins(`LEFT JOIN users AS created_by_user ON created_by_user.id = sending_profiles.created_by`).
+			Joins(`LEFT JOIN users AS updated_by_user ON updated_by_user.id = sending_profiles.updated_by`).Where("sending_profiles.created_by = ?", userIDScope)
+	}
 
 	var total int64
 	query.Count(&total)
@@ -221,6 +236,7 @@ func UpdateSendingProfile(c *gin.Context) {
 	updates["host"] = requestBody.Host
 	updates["username"] = requestBody.Username
 	updates["updated_at"] = time.Now()
+	updates["updated_by"] = requestBody.UpdatedBy
 
 	// Logika update password: hanya update jika password baru diberikan
 	if requestBody.Password != "" {
@@ -416,7 +432,7 @@ func SendTestEmail(c *gin.Context) {
 		&sendingProfile,
 		req.Recipient.Email,
 		req.EmailBody,
-		"Test Email from Awakenix", // Subject
+		"Test Email from Awarenix",
 	)
 
 	if err != nil {

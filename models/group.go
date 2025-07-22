@@ -4,7 +4,7 @@ import "time"
 
 type Group struct {
 	ID           uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name         string    `gorm:"type:varchar(30);uniqueIndex;not null" json:"name"`
+	Name         string    `gorm:"type:varchar(30);not null" json:"name"`
 	DomainStatus string    `gorm:"type:varchar(50);not null" json:"domainStatus"`
 	CreatedAt    time.Time `gorm:"type:datetime;null" json:"createdAt"`
 	CreatedBy    int       `gorm:"type:tinyint(3);null" json:"createdBy"`
@@ -25,6 +25,19 @@ type Member struct {
 	CreatedBy int       `gorm:"type:tinyint(3);null" json:"createdBy"`
 	UpdatedAt time.Time `gorm:"type:datetime;null" json:"updatedAt"`
 	UpdatedBy int       `gorm:"type:tinyint(3);null" json:"updatedBy"`
+}
+
+type GroupMember struct {
+	ID        uint   `gorm:"primaryKey"`
+	GroupID   uint   `gorm:"not null;index"`
+	UserID    uint   `gorm:"not null;index"`
+	Name      string `gorm:"type:varchar(100);not null"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+
+	// (Optional) Relasi untuk preload jika Anda butuh data Group/User lebih lengkap
+	Group Group `gorm:"foreignKey:GroupID"`
+	User  User  `gorm:"foreignKey:UserID"`
 }
 
 type MemberInput struct {
