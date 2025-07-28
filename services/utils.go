@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mssola/user_agent"
+	"github.com/speps/go-hashids"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/html"
 	"gorm.io/datatypes"
@@ -27,7 +29,11 @@ func HashPassword(password string) (string, error) {
 }
 
 // LogEventByRID mencatat event berbasis rid (string UUID)
-func LogEventByRID(c *gin.Context, rid string, eventType string) {
+func LogEventByRID(c *gin.Context, rid string, eventType string, campaignLanguage string) {
+	if campaignLanguage == "" {
+		campaignLanguage = "English"
+	}
+
 	// 1. Cari Recipient
 	var rec models.Recipient
 	if err := config.DB.
@@ -96,14 +102,15 @@ func LogEventByRID(c *gin.Context, rid string, eventType string) {
 		c.File("pixel.gif")
 	case string(models.Clicked):
 		target, _ := url.QueryUnescape(c.Query("url"))
-		c.Redirect(302, target)
+		c.Redirect(http.StatusFound, target) // Menggunakan http.StatusFound (302)
 	case string(models.Submitted):
-		c.Redirect(302, "http://localhost:5173/dashboard")
+		c.Redirect(http.StatusFound, "http://localhost:5173/dashboard") // Menggunakan http.StatusFound (302)
 	case string(models.Reported):
 		frontendDomain := "localhost:5173"
-		c.Redirect(302, fmt.Sprintf("http://%s/report-thanks", frontendDomain))
+		// Meneruskan parameter bahasa yang diterima ke URL frontend
+		c.Redirect(http.StatusFound, fmt.Sprintf("http://%s/report-thanks?lang=%s", frontendDomain, campaignLanguage)) // Menggunakan http.StatusFound (302)
 	default:
-		c.Status(204)
+		c.Status(http.StatusNoContent) // Menggunakan http.StatusNoContent (204)
 	}
 }
 
@@ -179,4 +186,47 @@ func GetRoleScope(c *gin.Context) (int, int, bool) {
 	role := user.Role
 
 	return userID, role, true
+}
+
+func GetRoleScopeDashboard(c *gin.Context) (int, int, int, bool) {
+	userScope, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "User not authenticated"})
+		return 0, 0, 0, false
+	}
+
+	user, ok := userScope.(*models.User)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Failed to parse user data: invalid user object in context"})
+		return 0, 0, 0, false
+	}
+
+	userID := int(user.ID)
+	role := user.Role
+
+	return userID, role, user.CreatedBy, true
+}
+
+func EncodeID(id int) string {
+	hd := hashids.NewData()
+	hd.Salt = os.Getenv("SALT_SECRET")
+	hd.MinLength = 6
+	h, _ := hashids.NewWithData(hd)
+
+	e, _ := h.Encode([]int{id})
+	return e
+}
+
+func DecodeID(encoded string) (int, error) {
+	hd := hashids.NewData()
+	hd.Salt = os.Getenv("SALT_SECRET")
+	hd.MinLength = 6
+	h, _ := hashids.NewWithData(hd)
+
+	ids, err := h.DecodeWithError(encoded)
+	if err != nil || len(ids) == 0 {
+		return 0, fmt.Errorf("invalid ID")
+	}
+
+	return ids[0], nil
 }

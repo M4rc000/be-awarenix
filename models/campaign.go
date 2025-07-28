@@ -15,7 +15,7 @@ type Campaign struct {
 	LandingPageID    uint       `gorm:"not null;index"               json:"landingPageId"`
 	SendingProfileID uint       `gorm:"not null;index"               json:"sendingProfileId"`
 	URL              string     `gorm:"type:varchar(255);not null"   json:"url"`
-	Status           string     `gorm:"type:varchar(20);default:'draft'" json:"status"`
+	Status           string     `gorm:"type:varchar(20);default:'pending'" json:"status"`
 	CreatedAt        time.Time  `gorm:"type:datetime;null" json:"createdAt"`
 	CreatedBy        int        `gorm:"type:tinyint(3);null" json:"createdBy"`
 	UpdatedAt        time.Time  `gorm:"type:datetime;null" json:"updatedAt"`
@@ -26,11 +26,12 @@ type Campaign struct {
 	EmailTemplate  EmailTemplate   `gorm:"foreignKey:EmailTemplateID" json:"emailTemplate"`
 	LandingPage    LandingPage     `gorm:"foreignKey:LandingPageID" json:"landingPage"`
 	SendingProfile SendingProfiles `gorm:"foreignKey:SendingProfileID" json:"sendingProfile"`
+	Recipients     []Recipient     `gorm:"foreignKey:CampaignID"`
 }
 
 type CampaignRequest struct {
 	Name             string  `json:"name" binding:"required"`
-	LaunchDate       string  `json:"launch_date" binding:"required"` // String untuk JSON dari frontend
+	LaunchDate       string  `json:"launch_date" binding:"required"`
 	SendEmailBy      *string `json:"send_email_by,omitempty"`
 	GroupID          uint    `json:"group_id" binding:"required"`
 	EmailTemplateID  uint    `json:"email_template_id" binding:"required"`
@@ -43,6 +44,7 @@ type CampaignRequest struct {
 
 type CampaignResponse struct {
 	ID                 int        `json:"id"`
+	UID                string     `json:"uid"`
 	Name               string     `json:"name"`
 	LaunchDate         time.Time  `json:"launch_date"`
 	SendEmailBy        *time.Time `json:"send_email_by,omitempty"`
@@ -69,6 +71,26 @@ type CampaignResponse struct {
 	EmailClicks    int `json:"email_clicks"`
 	EmailSubmitted int `json:"email_submitted"`
 	EmailReported  int `json:"email_reported"`
+
+	TotalParticipants int                 `json:"total_participants"`
+	Participants      []ParticipantDetail `json:"participants,omitempty"`
+	TimelineEvents    []TimelineEvent     `json:"timeline_events,omitempty"`
+}
+
+type ParticipantDetail struct {
+	ID       uint   `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Status   string `json:"status"`
+	Position string `json:"position"`
+	Browser  string `json:"browser"`
+	OS       string `json:"os"`
+}
+
+type TimelineEvent struct {
+	Timestamp time.Time `json:"timestamp"`
+	Type      string    `json:"type"`
+	Message   string    `json:"message"`
 }
 
 type NewCampaignResponse struct {

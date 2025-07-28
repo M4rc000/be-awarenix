@@ -127,7 +127,7 @@ func RegisterEmailTemplate(c *gin.Context) {
 		EnvelopeSender:   input.EnvelopeSender,
 		Subject:          input.Subject,
 		Body:             input.Body,
-		TrackerImage:     input.TrackerImage,
+		Language:         input.Language,
 		IsSystemTemplate: input.IsSystemTemplate,
 		CreatedAt:        time.Now(),
 		CreatedBy:        input.CreatedBy,
@@ -208,7 +208,6 @@ func UpdateEmailTemplate(c *gin.Context) {
 	emailTemplate.EnvelopeSender = updatedData.EnvelopSender
 	emailTemplate.Subject = updatedData.Subject
 	emailTemplate.Body = updatedData.Body
-	emailTemplate.TrackerImage = updatedData.TrackerImage
 	emailTemplate.UpdatedBy = int(updatedData.UpdatedBy)
 	emailTemplate.IsSystemTemplate = isSystemTemplateInt
 	emailTemplate.UpdatedAt = time.Now()

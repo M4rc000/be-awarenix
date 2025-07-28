@@ -104,6 +104,7 @@ func SetupRoutes(router *gin.Engine) {
 		{
 			campaigns.POST("/create", controllers.RegisterCampaign)
 			campaigns.GET("/all", controllers.GetCampaigns)
+			campaigns.GET("/role-scope-parent/all", controllers.GetCampaignsRoleScopeParent)
 			campaigns.GET("/:id", controllers.GetCampaignDetail)
 			campaigns.PUT("/:id", controllers.UpdateCampaign)
 			campaigns.DELETE("/:id", controllers.DeleteCampaign)
